@@ -1,6 +1,6 @@
 import { env } from "@EasyVocab/env/server";
 import cors from "cors";
-import express from "express";
+import express, { type Request, type Response } from "express";
 
 const app = express();
 
@@ -13,7 +13,7 @@ app.use(
 
 app.use(express.json());
 
-app.get("/", (_req, res) => {
+app.get("/", (_req: Request, res: Response) => {
   res.status(200).send("OK");
 });
 
