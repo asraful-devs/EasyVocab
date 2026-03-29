@@ -1,0 +1,3 @@
+{
+  "extends": "@EasyVocab/config/tsconfig.base.json"
+}
