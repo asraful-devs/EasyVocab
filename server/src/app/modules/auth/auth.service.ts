@@ -1,34 +1,20 @@
-import { status } from '@prisma/client';
 import bcrypt from 'bcrypt';
-import { Request } from 'express';
+import { type Request } from 'express';
 import httpStatus from 'http-status';
-import { Secret } from 'jsonwebtoken';
-import { resetPasswordTemplate } from '../../../templates/email';
+import type { Secret } from 'jsonwebtoken';
+import { prisma } from '../../../../lib/prisma';
 import config from '../../config/config';
-import prisma from '../../config/db';
 import ApiError from '../../error/ApiError';
 import { JwtHelper } from '../../helpers/jwtHelper';
-import emailSender from '../../utils/emailSender';
 
 const login = async (req: Request) => {
     const payload = req.body;
 
-    const result = await prisma.person.findUniqueOrThrow({
+    const result = await prisma.user.findUniqueOrThrow({
         where: {
             email: payload.email,
-            status: status.ACTIVE,
         },
     });
-
-    const role = result.role.toLocaleLowerCase();
-
-    const detailsResult = await prisma[role].findUniqueOrThrow({
-        where: {
-            email: result.email,
-        },
-    });
-
-    // console.log(detailsResult, 'mamama details result all ok');
 
     const isCorrectPassword = await bcrypt.compare(
         payload.password,
@@ -41,10 +27,10 @@ const login = async (req: Request) => {
 
     const accessToken = JwtHelper.generateTokens(
         {
-            parsonId: result.id,
-            name: result.name,
+            id: result.id,
+            fullName: result.fullName,
             email: result.email,
-            profilePhoto: detailsResult?.profilePhoto,
+            profilePicture: result.profilePicture,
             role: result.role,
         },
         config.jwt.access_secret as Secret,
@@ -53,10 +39,10 @@ const login = async (req: Request) => {
 
     const refreshToken = JwtHelper.generateTokens(
         {
-            parsonId: result.id,
-            name: result.name,
+            id: result.id,
+            fullName: result.fullName,
             email: result.email,
-            profilePhoto: detailsResult?.profilePhoto,
+            profilePicture: result.profilePicture,
             role: result.role,
         },
         config.jwt.refresh_secret as Secret,
@@ -66,7 +52,6 @@ const login = async (req: Request) => {
     return {
         accessToken,
         refreshToken,
-        needPasswordChange: result.needsPasswordChange,
     };
 };
 
@@ -81,16 +66,16 @@ const refreshToken = async (token: string) => {
         throw new Error('You are not authorized!');
     }
 
-    const userData = await prisma.person.findUniqueOrThrow({
+    const userData = await prisma.user.findUniqueOrThrow({
         where: {
             email: decodedData.email,
-            status: status.ACTIVE,
+            isDeleted: false,
         },
     });
 
     const accessToken = JwtHelper.generateTokens(
         {
-            userId: userData.id,
+            id: userData.id,
             email: userData.email,
             role: userData.role,
         },
@@ -100,15 +85,17 @@ const refreshToken = async (token: string) => {
 
     return {
         accessToken,
-        needPasswordChange: userData.needsPasswordChange,
     };
 };
 
-const changePassword = async (user: any, payload: any) => {
-    const userData = await prisma.person.findUniqueOrThrow({
+const changePassword = async (
+    user: any,
+    payload: { oldPassword: string; newPassword: string }
+) => {
+    const userData = await prisma.user.findUniqueOrThrow({
         where: {
             email: user.email,
-            status: status.ACTIVE,
+            isDeleted: false,
         },
     });
 
@@ -126,13 +113,12 @@ const changePassword = async (user: any, payload: any) => {
         config.saltRounds
     );
 
-    await prisma.person.update({
+    await prisma.user.update({
         where: {
             email: userData.email,
         },
         data: {
             password: hashedPassword,
-            needsPasswordChange: false,
         },
     });
 
@@ -142,10 +128,10 @@ const changePassword = async (user: any, payload: any) => {
 };
 
 const forgotPassword = async (payload: { email: string }) => {
-    const userData = await prisma.person.findUniqueOrThrow({
+    const userData = await prisma.user.findUniqueOrThrow({
         where: {
             email: payload.email,
-            status: status.ACTIVE,
+            isDeleted: false,
         },
     });
 
@@ -155,27 +141,27 @@ const forgotPassword = async (payload: { email: string }) => {
         config.jwt.reset_token_expires_in as string
     );
 
-    const resetPassLink =
-        config.jwt.reset_pass_link +
-        `?userId=${userData.id}&token=${resetPassToken}`;
+    // const resetPassLink =
+    //     config.jwt.reset_pass_link +
+    //     `?userId=${userData.id}&token=${resetPassToken}`;
 
-    const emailTemplate = resetPasswordTemplate(userData, resetPassLink);
+    // const emailTemplate = resetPasswordTemplate(userData, resetPassLink);
 
-    await emailSender(
-        userData.email,
-        'Reset Your Password - Never Alone',
-        emailTemplate
-    );
+    // await emailSender(
+    //     userData.email,
+    //     'Reset Your Password - Easy Vocab',
+    //     emailTemplate
+    // );
 };
 
 const resetPassword = async (
     token: string,
     payload: { id: string; password: string }
 ) => {
-    const userData = await prisma.person.findUniqueOrThrow({
+    const userData = await prisma.user.findUniqueOrThrow({
         where: {
             id: payload.id,
-            status: status.ACTIVE,
+            isDeleted: false,
         },
     });
 
@@ -192,7 +178,7 @@ const resetPassword = async (
     const password = await bcrypt.hash(payload.password, config.saltRounds);
 
     // update into database
-    await prisma.person.update({
+    await prisma.user.update({
         where: {
             id: payload.id,
         },
@@ -209,27 +195,22 @@ const getMe = async (session: any) => {
         config.jwt.access_secret as Secret
     );
 
-    const userData = await prisma.person.findUniqueOrThrow({
+    const userData = await prisma.user.findUniqueOrThrow({
         where: {
             email: decodedData.email,
-            status: status.ACTIVE,
+            isDeleted: false,
         },
     });
 
-    const {
-        id,
-        email,
-        role,
-        needsPasswordChange,
-        status: userStatus,
-    } = userData;
+    const { id, fullName, email, role, phone, isDeleted } = userData;
 
     return {
         id,
+        fullName,
         email,
         role,
-        needsPasswordChange,
-        status: userStatus,
+        phone,
+        isDeleted,
     };
 };
 
