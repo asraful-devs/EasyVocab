@@ -11,6 +11,12 @@ const sendResponse = <T>(
             limit: number;
             total: number;
         };
+        pagination?: {
+            page: number;
+            limit: number;
+            total: number;
+            totalPages: number;
+        };
         data: T | null | undefined;
     }
 ) => {
@@ -18,6 +24,7 @@ const sendResponse = <T>(
         success: jsonData.success,
         message: jsonData.message,
         meta: jsonData.meta || null || undefined,
+        pagination: jsonData.pagination || null || undefined,
         data: jsonData.data || null || undefined,
     });
 };

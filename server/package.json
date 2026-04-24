@@ -5,7 +5,8 @@
     "private": true,
     "scripts": {
         "dev": "tsx watch src/server.ts",
-        "build": "tsc"
+        "build": "tsc",
+        "seed:words": "tsx src/scripts/seedWords.ts"
     },
     "devDependencies": {
         "@types/bun": "latest",
@@ -27,6 +28,7 @@
         "@types/http-status": "^1.1.2",
         "@types/jsonwebtoken": "^9.0.10",
         "bcrypt": "^6.0.0",
+        "axios": "^1.9.0",
         "cookie-parser": "^1.4.7",
         "cors": "^2.8.6",
         "dotenv": "^17.4.2",
